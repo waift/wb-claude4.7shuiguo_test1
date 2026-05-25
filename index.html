@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>水果消消乐</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(160deg, #e3f2fd 0%, #ffffff 50%, #e8f4fc 100%);
+    color: #1e3a5f;
+    overflow: hidden;
+    user-select: none;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 20px 12px;
+    min-height: 100vh;
+  }
+
+  .header {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #1976d2;
+  }
+  .stats {
+    display: flex;
+    gap: 10px;
+  }
+  .stat-card {
+    background: #ffffff;
+    border: 1px solid #d6e9f7;
+    border-radius: 10px;
+    padding: 8px 14px;
+    min-width: 78px;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(25,118,210,0.06);
+  }
+  .stat-label {
+    font-size: 11px;
+    color: #6b8aa8;
+    margin-bottom: 2px;
+  }
+  .stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1976d2;
+    transition: transform 0.2s;
+  }
+  .stat-value.bump { transform: scale(1.25); color: #ff5722; }
+
+  .board-wrapper {
+    position: relative;
+    width: min(94vw, 480px);
+    aspect-ratio: 1 / 1;
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #d6e9f7;
+    box-shadow: 0 6px 24px rgba(25,118,210,0.10);
+    padding: 8px;
+  }
+  .board {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #f4faff;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .cell {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: left 0.28s cubic-bezier(.4,1.5,.6,1), top 0.28s cubic-bezier(.4,1.5,.6,1), transform 0.18s, opacity 0.18s;
+    will-change: left, top, transform;
+  }
+  .cell .fruit {
+    width: 86%;
+    height: 86%;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0;
+    line-height: 1;
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06);
+    transition: transform 0.18s, box-shadow 0.18s;
+  }
+  .cell .fruit svg { width: 78%; height: 78%; }
+  .cell.selected .fruit {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 3px #1976d2, 0 4px 10px rgba(25,118,210,0.3);
+  }
+  .cell.matching .fruit {
+    animation: pop 0.32s forwards;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.25); }
+    100% { transform: scale(0); opacity: 0; }
+  }
+  .cell.dropping {
+    transition: top 0.32s cubic-bezier(.5,0,.4,1);
+  }
+
+  .combo-banner {
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.5);
+    font-size: 36px;
+    font-weight: 800;
+    color: #ff5722;
+    text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff, 0 4px 12px rgba(255,87,34,0.4);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 10;
+    white-space: nowrap;
+  }
+  .combo-banner.show {
+    animation: comboShow 1s ease-out forwards;
+  }
+  @keyframes comboShow {
+    0% { transform: translate(-50%, -50%) scale(0.4) rotate(-8deg); opacity: 0; }
+    25% { transform: translate(-50%, -50%) scale(1.3) rotate(4deg); opacity: 1; }
+    60% { transform: translate(-50%, -50%) scale(1.0) rotate(0); opacity: 1; }
+    100% { transform: translate(-50%, -150%) scale(0.9); opacity: 0; }
+  }
+
+  .score-pop {
+    position: absolute;
+    color: #1976d2;
+    font-weight: 700;
+    font-size: 18px;
+    pointer-events: none;
+    z-index: 9;
+    text-shadow: 0 1px 2px rgba(255,255,255,0.9);
+    animation: scorePop 0.9s ease-out forwards;
+  }
+  @keyframes scorePop {
+    0% { transform: translateY(0) scale(0.8); opacity: 0; }
+    20% { transform: translateY(-4px) scale(1.1); opacity: 1; }
+    100% { transform: translateY(-40px) scale(1); opacity: 0; }
+  }
+
+  .footer {
+    margin-top: 16px;
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 520px;
+    justify-content: center;
+  }
+  .btn {
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 3px 8px rgba(25,118,210,0.25);
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  .btn:active { transform: translateY(1px); box-shadow: 0 1px 3px rgba(25,118,210,0.25); }
+  .btn.secondary { background: #fff; color: #1976d2; border: 1px solid #1976d2; box-shadow: none; }
+
+  .tip {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #6b8aa8;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">🍓 水果消消乐</div>
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">分数</div>
+        <div class="stat-value" id="scoreVal">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">连击</div>
+        <div class="stat-value" id="comboVal">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="board-wrapper">
+    <div class="board" id="board"></div>
+    <div class="combo-banner" id="comboBanner"></div>
+  </div>
+
+  <div class="footer">
+    <button class="btn" id="restartBtn">重新开始</button>
+    <button class="btn secondary" id="shuffleBtn">洗牌</button>
+  </div>
+  <div class="tip">点击两个相邻水果交换位置，三个或更多连成一线即可消除</div>
+
+<script>
+(function(){
+  const SIZE = 8;
+  const FRUIT_TYPES = 6;
+  // 水果定义：用纯色圆角 + emoji svg 风格简化 —— 这里用 emoji 替代以保证清晰
+  const FRUITS = [
+    { bg: '#ffe0e0', emoji: '🍓' }, // 草莓
+    { bg: '#fff3d6', emoji: '🍌' }, // 香蕉
+    { bg: '#e8f5d9', emoji: '🍏' }, // 苹果
+    { bg: '#e0d4f7', emoji: '🍇' }, // 葡萄
+    { bg: '#ffe2c7', emoji: '🍊' }, // 橘子
+    { bg: '#d4ebff', emoji: '🫐' }, // 蓝莓
+  ];
+
+  const board = document.getElementById('board');
+  const scoreEl = document.getElementById('scoreVal');
+  const comboEl = document.getElementById('comboVal');
+  const comboBanner = document.getElementById('comboBanner');
+  const restartBtn = document.getElementById('restartBtn');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+
+  let grid = [];          // grid[r][c] = {type, el}
+  let score = 0;
+  let combo = 0;
+  let busy = false;
+  let firstSelect = null;
+  let cellSize = 0;       // 像素
+
+  // 初始化网格（保证起始无三连）
+  function buildGrid() {
+    grid = [];
+    for (let r = 0; r < SIZE; r++) {
+      grid[r] = [];
+      for (let c = 0; c < SIZE; c++) {
+        let type;
+        do {
+          type = Math.floor(Math.random() * FRUIT_TYPES);
+        } while (
+          (c >= 2 && grid[r][c-1].type === type && grid[r][c-2].type === type) ||
+          (r >= 2 && grid[r-1][c].type === type && grid[r-2][c].type === type)
+        );
+        grid[r][c] = { type, el: null };
+      }
+    }
+  }
+
+  function computeCellSize() {
+    cellSize = board.clientWidth / SIZE;
+  }
+
+  function createCellEl(type, r, c) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.style.width = cellSize + 'px';
+    cell.style.height = cellSize + 'px';
+    cell.style.left = (c * cellSize) + 'px';
+    cell.style.top = (r * cellSize) + 'px';
+
+    const fruit = document.createElement('div');
+    fruit.className = 'fruit';
+    fruit.style.background = FRUITS[type].bg;
+    fruit.style.fontSize = (cellSize * 0.55) + 'px';
+    fruit.textContent = FRUITS[type].emoji;
+    cell.appendChild(fruit);
+
+    cell.addEventListener('click', () => onCellClick(cell));
+    return cell;
+  }
+
+  function renderBoard() {
+    board.innerHTML = '';
+    computeCellSize();
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const el = createCellEl(grid[r][c].type, r, c);
+        el.dataset.row = r;
+        el.dataset.col = c;
+        grid[r][c].el = el;
+        board.appendChild(el);
+      }
+    }
+  }
+
+  function updatePosition(r, c) {
+    const el = grid[r][c].el;
+    if (!el) return;
+    el.style.left = (c * cellSize) + 'px';
+    el.style.top = (r * cellSize) + 'px';
+    el.dataset.row = r;
+    el.dataset.col = c;
+  }
+
+  function isAdjacent(a, b) {
+    const dr = Math.abs(+a.dataset.row - +b.dataset.row);
+    const dc = Math.abs(+a.dataset.col - +b.dataset.col);
+    return (dr + dc === 1);
+  }
+
+  async function onCellClick(cell) {
+    if (busy) return;
+    if (!firstSelect) {
+      firstSelect = cell;
+      cell.classList.add('selected');
+      return;
+    }
+    if (firstSelect === cell) {
+      cell.classList.remove('selected');
+      firstSelect = null;
+      return;
+    }
+    if (!isAdjacent(firstSelect, cell)) {
+      firstSelect.classList.remove('selected');
+      firstSelect = cell;
+      cell.classList.add('selected');
+      return;
+    }
+    const a = firstSelect;
+    const b = cell;
+    a.classList.remove('selected');
+    firstSelect = null;
+    busy = true;
+    await trySwap(a, b);
+    busy = false;
+  }
+
+  async function trySwap(a, b) {
+    const ar = +a.dataset.row, ac = +a.dataset.col;
+    const br = +b.dataset.row, bc = +b.dataset.col;
+    swapInGrid(ar, ac, br, bc);
+    updatePosition(ar, ac);
+    updatePosition(br, bc);
+    await sleep(300);
+
+    const matches = findAllMatches();
+    if (matches.length === 0) {
+      // 交换无效，换回去
+      swapInGrid(ar, ac, br, bc);
+      updatePosition(ar, ac);
+      updatePosition(br, bc);
+      await sleep(300);
+      return;
+    }
+    combo = 0;
+    await resolveMatches();
+  }
+
+  function swapInGrid(r1, c1, r2, c2) {
+    const tmp = grid[r1][c1];
+    grid[r1][c1] = grid[r2][c2];
+    grid[r2][c2] = tmp;
+  }
+
+  function findAllMatches() {
+    const matched = Array.from({length: SIZE}, () => Array(SIZE).fill(false));
+    // 横向
+    for (let r = 0; r < SIZE; r++) {
+      let run = 1;
+      for (let c = 1; c <= SIZE; c++) {
+        if (c < SIZE && grid[r][c].type === grid[r][c-1].type) {
+          run++;
+        } else {
+          if (run >= 3) {
+            for (let k = 1; k <= run; k++) matched[r][c-k] = true;
+          }
+          run = 1;
+        }
+      }
+    }
+    // 纵向
+    for (let c = 0; c < SIZE; c++) {
+      let run = 1;
+      for (let r = 1; r <= SIZE; r++) {
+        if (r < SIZE && grid[r][c].type === grid[r-1][c].type) {
+          run++;
+        } else {
+          if (run >= 3) {
+            for (let k = 1; k <= run; k++) matched[r-k][c] = true;
+          }
+          run = 1;
+        }
+      }
+    }
+    const result = [];
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (matched[r][c]) result.push([r, c]);
+    return result;
+  }
+
+  async function resolveMatches() {
+    while (true) {
+      const matches = findAllMatches();
+      if (matches.length === 0) {
+        if (combo >= 2) showCombo(combo);
+        // 检查是否有可消除的，否则洗牌
+        if (!hasPossibleMove()) {
+          await sleep(300);
+          await shuffleBoard();
+        }
+        return;
+      }
+      combo++;
+      // 计分：基础10/个 + combo加成
+      const gained = matches.length * 10 * combo;
+      addScore(gained);
+
+      // 在第一个匹配位置弹出 +xx
+      const first = matches[0];
+      popScoreAt(first[0], first[1], '+' + gained);
+
+      if (combo >= 2) flashCombo(combo);
+
+      // 标记消除动画
+      matches.forEach(([r,c]) => {
+        if (grid[r][c].el) {
+          grid[r][c].el.classList.add('matching');
+        }
+      });
+      await sleep(320);
+
+      // 移除元素
+      matches.forEach(([r,c]) => {
+        if (grid[r][c].el) {
+          grid[r][c].el.remove();
+        }
+        grid[r][c] = null;
+      });
+
+      // 下落 + 补位
+      await dropAndFill();
+      await sleep(50);
+    }
+  }
+
+  async function dropAndFill() {
+    for (let c = 0; c < SIZE; c++) {
+      // 从底向上整理
+      let writeRow = SIZE - 1;
+      for (let r = SIZE - 1; r >= 0; r--) {
+        if (grid[r][c]) {
+          if (r !== writeRow) {
+            grid[writeRow][c] = grid[r][c];
+            grid[r][c] = null;
+            const el = grid[writeRow][c].el;
+            el.classList.add('dropping');
+            el.style.top = (writeRow * cellSize) + 'px';
+            el.dataset.row = writeRow;
+          }
+          writeRow--;
+        }
+      }
+      // writeRow 以上的位置生成新水果
+      for (let r = writeRow; r >= 0; r--) {
+        const type = Math.floor(Math.random() * FRUIT_TYPES);
+        const el = createCellEl(type, r, c);
+        el.style.top = (-cellSize * (writeRow - r + 1)) + 'px';
+        el.dataset.row = r;
+        el.dataset.col = c;
+        board.appendChild(el);
+        grid[r][c] = { type, el };
+        // 触发回到目标位置（下一帧）
+        requestAnimationFrame(() => {
+          el.classList.add('dropping');
+          el.style.top = (r * cellSize) + 'px';
+        });
+      }
+    }
+    await sleep(340);
+    // 清掉过渡类
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (grid[r][c] && grid[r][c].el) {
+          grid[r][c].el.classList.remove('dropping');
+        }
+      }
+    }
+  }
+
+  function hasPossibleMove() {
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        // 与右边交换
+        if (c < SIZE - 1) {
+          swapTypes(r, c, r, c+1);
+          if (findAllMatches().length > 0) {
+            swapTypes(r, c, r, c+1);
+            return true;
+          }
+          swapTypes(r, c, r, c+1);
+        }
+        // 与下方交换
+        if (r < SIZE - 1) {
+          swapTypes(r, c, r+1, c);
+          if (findAllMatches().length > 0) {
+            swapTypes(r, c, r+1, c);
+            return true;
+          }
+          swapTypes(r, c, r+1, c);
+        }
+      }
+    }
+    return false;
+  }
+  function swapTypes(r1,c1,r2,c2){
+    const t = grid[r1][c1].type;
+    grid[r1][c1].type = grid[r2][c2].type;
+    grid[r2][c2].type = t;
+  }
+
+  async function shuffleBoard() {
+    // 收集所有 type 重新随机分布
+    const types = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) types.push(grid[r][c].type);
+    // 重新打乱直到无初始三连
+    let tries = 0;
+    do {
+      for (let i = types.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i+1));
+        [types[i], types[j]] = [types[j], types[i]];
+      }
+      // 应用
+      let idx = 0;
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          grid[r][c].type = types[idx++];
+        }
+      }
+      tries++;
+    } while (findAllMatches().length > 0 && tries < 30);
+    // 重渲染
+    renderBoard();
+    await sleep(200);
+    // 如仍无可走，递归
+    if (!hasPossibleMove()) {
+      await shuffleBoard();
+    }
+  }
+
+  function addScore(n) {
+    score += n;
+    scoreEl.textContent = score;
+    scoreEl.classList.add('bump');
+    setTimeout(()=> scoreEl.classList.remove('bump'), 200);
+  }
+
+  function flashCombo(n) {
+    comboEl.textContent = n;
+    comboEl.classList.add('bump');
+    setTimeout(()=> comboEl.classList.remove('bump'), 200);
+  }
+
+  function showCombo(n) {
+    comboBanner.textContent = 'COMBO x' + n + '!';
+    comboBanner.classList.remove('show');
+    void comboBanner.offsetWidth;
+    comboBanner.classList.add('show');
+    setTimeout(()=> {
+      comboEl.textContent = 0;
+    }, 900);
+  }
+
+  function popScoreAt(r, c, text) {
+    const pop = document.createElement('div');
+    pop.className = 'score-pop';
+    pop.textContent = text;
+    pop.style.left = (c * cellSize + cellSize/2 - 18) + 'px';
+    pop.style.top = (r * cellSize + cellSize/2 - 10) + 'px';
+    board.appendChild(pop);
+    setTimeout(()=> pop.remove(), 900);
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function startGame() {
+    score = 0;
+    combo = 0;
+    scoreEl.textContent = 0;
+    comboEl.textContent = 0;
+    firstSelect = null;
+    busy = false;
+    buildGrid();
+    renderBoard();
+    // 兜底：如果初始没有可走，洗一次
+    if (!hasPossibleMove()) shuffleBoard();
+  }
+
+  restartBtn.addEventListener('click', () => {
+    if (busy) return;
+    startGame();
+  });
+  shuffleBtn.addEventListener('click', async () => {
+    if (busy) return;
+    busy = true;
+    await shuffleBoard();
+    busy = false;
+  });
+
+  window.addEventListener('resize', () => {
+    // 重新计算尺寸并刷新位置
+    computeCellSize();
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const el = grid[r][c] && grid[r][c].el;
+        if (el) {
+          el.style.width = cellSize + 'px';
+          el.style.height = cellSize + 'px';
+          el.style.left = (c * cellSize) + 'px';
+          el.style.top = (r * cellSize) + 'px';
+          const f = el.querySelector('.fruit');
+          if (f) f.style.fontSize = (cellSize * 0.55) + 'px';
+        }
+      }
+    }
+  });
+
+  startGame();
+})();
+</script>
+</body>
+</html>
